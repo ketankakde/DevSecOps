@@ -39,20 +39,19 @@ stages {
     }
 }
     stage('OWASP Dependency Check') {
-        steps {
-            dependencyCheck(
-                odcInstallation: 'dc',
-                additionalArguments: '--scan frontend --scan backend'
-            )
-        }
+    steps {
+        sh '''
+        /opt/dependency-check/bin/dependency-check.sh \
+        --scan frontend \
+        --scan backend \
+        --out .
+        '''
     }
-
+}
     stage('Publish OWASP Report') {
         steps {
-            dependencyCheckPublisher(
-                pattern: '**/dependency-check-report.xml'
-            )
-        }
+            sh 'ls -la'        
+         }
     }
 
     stage('Build Images') {
