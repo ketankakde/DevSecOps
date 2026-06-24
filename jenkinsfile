@@ -41,7 +41,7 @@ stages {
     stage('OWASP Dependency Check') {
         steps {
             dependencyCheck(
-                odcInstallation: 'DC',
+                odcInstallation: 'dc',
                 additionalArguments: '--scan frontend --scan backend'
             )
         }
