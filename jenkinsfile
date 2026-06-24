@@ -1,0 +1,150 @@
+pipeline {
+agent any
+
+```
+environment {
+    FRONTEND_IMAGE = "ketanops/frontend"
+    BACKEND_IMAGE  = "ketanops/backend"
+
+    IMAGE_TAG = "${BUILD_NUMBER}"
+
+    SONAR_TOKEN = credentials('sonar-token')
+    DOCKER_CREDS = credentials('dockerhub-creds')
+
+    SONAR_PROJECT_KEY = "ketankakde_DevSecOps"
+    SONAR_ORG = "ketankakde"
+}
+
+stages {
+
+    stage('Checkout') {
+        steps {
+            git branch: 'main',
+                url: 'https://github.com/ketankakde/DevSecOps.git'
+        }
+    }
+
+    stage('SonarCloud Scan') {
+        steps {
+            sh '''
+            sonar-scanner \
+            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
+            -Dsonar.organization=${SONAR_ORG} \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.token=${SONAR_TOKEN} \
+            -Dsonar.qualitygate.wait=true
+            '''
+        }
+    }
+
+    stage('OWASP Dependency Check') {
+        steps {
+            dependencyCheck(
+                odcInstallation: 'DC',
+                additionalArguments: '--scan .'
+            )
+        }
+    }
+
+    stage('Publish OWASP Report') {
+        steps {
+            dependencyCheckPublisher(
+                pattern: '**/dependency-check-report.xml'
+            )
+        }
+    }
+
+    stage('Build Images') {
+        steps {
+            sh '''
+            docker build \
+            -t ${FRONTEND_IMAGE}:${IMAGE_TAG} \
+            ./frontend
+
+            docker build \
+            -t ${BACKEND_IMAGE}:${IMAGE_TAG} \
+            ./backend
+            '''
+        }
+    }
+
+    stage('Trivy Scan') {
+        steps {
+            sh '''
+            trivy image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            ${FRONTEND_IMAGE}:${IMAGE_TAG}
+
+            trivy image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            ${BACKEND_IMAGE}:${IMAGE_TAG}
+            '''
+        }
+    }
+
+    stage('Docker Login') {
+        steps {
+            sh '''
+            echo ${DOCKER_CREDS_PSW} | docker login \
+            -u ${DOCKER_CREDS_USR} \
+            --password-stdin
+            '''
+        }
+    }
+
+    stage('Push Images') {
+        steps {
+            sh '''
+            docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
+            docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
+            '''
+        }
+    }
+
+    stage('Deploy To EC2') {
+        steps {
+            sshagent(credentials: ['ec2-ssh']) {
+
+                sh '''
+                ssh -o StrictHostKeyChecking=no ubuntu@184.72.75.182 << EOF
+
+                docker pull ${FRONTEND_IMAGE}:${IMAGE_TAG}
+                docker pull ${BACKEND_IMAGE}:${IMAGE_TAG}
+
+                docker compose down -v
+
+                docker compose up -d
+
+                EOF
+                '''
+            }
+        }
+    }
+
+    stage('OWASP ZAP DAST') {
+        steps {
+            sh '''
+            docker run --rm \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://APP_SERVER_IP
+            '''
+        }
+    }
+}
+
+post {
+
+    success {
+        echo 'Pipeline Completed Successfully'
+    }
+
+    failure {
+        echo 'Pipeline Failed'
+    }
+}
+```
+
+}
