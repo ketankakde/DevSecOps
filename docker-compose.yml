@@ -1,8 +1,7 @@
 services:
-  # MySQL Database
   mysql:
     image: mysql:8.0
-    container_name: student_mysql
+    container_name: mysql
     environment:
       MYSQL_ROOT_PASSWORD: password123
       MYSQL_DATABASE: student_registration
@@ -17,10 +16,9 @@ services:
     networks:
       - student_network
 
-  # Node.js Backend API
   backend:
-    build: ./backend
-    container_name: student_backend
+    image: ketanops/backend:latest
+    container_name: backend
     environment:
       DB_HOST: mysql
       DB_USER: root
@@ -39,10 +37,9 @@ services:
       - student_network
     restart: unless-stopped
 
-  # Nginx Frontend
   frontend:
-    build: ./frontend
-    container_name: student_frontend
+    image: ketanops/frontend:latest
+    container_name: frontend
     ports:
       - "80:80"
     depends_on:

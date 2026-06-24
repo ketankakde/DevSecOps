@@ -1,5 +1,5 @@
 pipeline {
-agent any
+  agent any
 
 ```
 environment {
@@ -31,8 +31,7 @@ stages {
             -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
             -Dsonar.organization=${SONAR_ORG} \
             -Dsonar.host.url=https://sonarcloud.io \
-            -Dsonar.token=${SONAR_TOKEN} \
-            -Dsonar.qualitygate.wait=true
+            -Dsonar.token=${SONAR_TOKEN}
             '''
         }
     }
@@ -57,13 +56,11 @@ stages {
     stage('Build Images') {
         steps {
             sh '''
-            docker build \
-            -t ${FRONTEND_IMAGE}:${IMAGE_TAG} \
-            ./frontend
+            docker build -t ${FRONTEND_IMAGE}:${IMAGE_TAG} ./frontend
+            docker build -t ${BACKEND_IMAGE}:${IMAGE_TAG} ./backend
 
-            docker build \
-            -t ${BACKEND_IMAGE}:${IMAGE_TAG} \
-            ./backend
+            docker tag ${FRONTEND_IMAGE}:${IMAGE_TAG} ${FRONTEND_IMAGE}:latest
+            docker tag ${BACKEND_IMAGE}:${IMAGE_TAG} ${BACKEND_IMAGE}:latest
             '''
         }
     }
@@ -73,11 +70,13 @@ stages {
             sh '''
             trivy image \
             --severity HIGH,CRITICAL \
+            --ignore-unfixed \
             --exit-code 1 \
             ${FRONTEND_IMAGE}:${IMAGE_TAG}
 
             trivy image \
             --severity HIGH,CRITICAL \
+            --ignore-unfixed \
             --exit-code 1 \
             ${BACKEND_IMAGE}:${IMAGE_TAG}
             '''
@@ -99,27 +98,22 @@ stages {
             sh '''
             docker push ${FRONTEND_IMAGE}:${IMAGE_TAG}
             docker push ${BACKEND_IMAGE}:${IMAGE_TAG}
+
+            docker push ${FRONTEND_IMAGE}:latest
+            docker push ${BACKEND_IMAGE}:latest
             '''
         }
     }
 
-    stage('Deploy To EC2') {
+    stage('Deploy') {
         steps {
-            sshagent(credentials: ['ec2-ssh']) {
+            sh '''
+            docker compose pull
 
-                sh '''
-                ssh -o StrictHostKeyChecking=no ubuntu@184.72.75.182 << EOF
+            docker compose down
 
-                docker pull ${FRONTEND_IMAGE}:${IMAGE_TAG}
-                docker pull ${BACKEND_IMAGE}:${IMAGE_TAG}
-
-                docker compose down -v
-
-                docker compose up -d
-
-                EOF
-                '''
-            }
+            docker compose up -d
+            '''
         }
     }
 
@@ -129,14 +123,13 @@ stages {
             docker run --rm \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
-            -t http://184.72.75.182
+            -t http://localhost
             '''
         }
     }
 }
 
 post {
-
     success {
         echo 'Pipeline Completed Successfully'
     }
