@@ -129,7 +129,7 @@ stages {
             docker run --rm \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
-            -t http://APP_SERVER_IP
+            -t http://184.72.75.182
             '''
         }
     }
