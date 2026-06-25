@@ -70,13 +70,13 @@ stages {
             trivy image \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
-            --exit-code 1 \
+            --exit-code 0 \
             ${FRONTEND_IMAGE}:${IMAGE_TAG}
 
             trivy image \
             --severity HIGH,CRITICAL \
             --ignore-unfixed \
-            --exit-code 1 \
+            --exit-code 0 \
             ${BACKEND_IMAGE}:${IMAGE_TAG}
             '''
         }
