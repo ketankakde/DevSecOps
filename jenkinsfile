@@ -129,13 +129,15 @@ stages {
             '''
         }
     }
+}
 
 post {
 
     always {
         archiveArtifacts artifacts: '''
         backend/snyk-report.html,
-        trivy-report.html,
+        trivy-frontend.html,
+        trivy-backend.html,
         zap-report.html
         ''', fingerprint: true
     }
