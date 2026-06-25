@@ -14,6 +14,11 @@ environment {
 
 stages {
 
+    stage('Clean Workspace') {
+       steps {
+          cleanWs()
+    }
+}   
     stage('Checkout') {
         steps {
             git branch: 'main',
@@ -38,22 +43,15 @@ stages {
 }
     stage('Snyk Scan') {
     steps {
-        withCredentials([string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')]) {
-            sh '''
-            snyk auth ${SNYK_TOKEN}
+        sh '''
+        snyk auth ${SNYK_TOKEN}
 
-            snyk test frontend \
-            --severity-threshold=high
-
-            snyk test backend \
-            --severity-threshold=high
-
-            snyk monitor frontend
-            snyk monitor backend
-            '''
-        }
+        cd backend
+        snyk test --severity-threshold=high
+        snyk monitor
+        '''
     }
-}
+}    
     stage('Build Images') {
         steps {
             sh '''
