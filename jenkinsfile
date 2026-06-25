@@ -148,4 +148,5 @@ post {
     failure {
         echo 'Pipeline Failed'
     }
+  }
 }
