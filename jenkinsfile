@@ -4,12 +4,10 @@ pipeline {
 environment {
     FRONTEND_IMAGE = "ketanops/frontend"
     BACKEND_IMAGE  = "ketanops/backend"
-
     IMAGE_TAG = "${BUILD_NUMBER}"
-
-    SONAR_TOKEN = credentials('sonar-token')
     DOCKER_CREDS = credentials('dockerhub-creds')
-
+    SNYK_TOKEN = credentials('snyk-token')
+    SONAR_TOKEN = credentials('sonar-token')
     SONAR_PROJECT_KEY = "ketankakde_DevSecOps"
     SONAR_ORG = "ketankakde"
 }
@@ -38,22 +36,24 @@ stages {
         }
     }
 }
-    stage('OWASP Dependency Check') {
+    stage('Snyk Scan') {
     steps {
-        sh '''
-        /opt/dependency-check/bin/dependency-check.sh \
-        --scan frontend \
-        --scan backend \
-        --out .
-        '''
+        withCredentials([string(credentialsId: 'snyk-token', variable: 'SNYK_TOKEN')]) {
+            sh '''
+            snyk auth ${SNYK_TOKEN}
+
+            snyk test frontend \
+            --severity-threshold=high
+
+            snyk test backend \
+            --severity-threshold=high
+
+            snyk monitor frontend
+            snyk monitor backend
+            '''
+        }
     }
 }
-    stage('Publish OWASP Report') {
-        steps {
-            sh 'ls -la'        
-         }
-    }
-
     stage('Build Images') {
         steps {
             sh '''
