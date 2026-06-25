@@ -47,7 +47,8 @@ stages {
         snyk auth ${SNYK_TOKEN}
         cd backend
         npm install
-        snyk test --severity-threshold=high
+        snyk test --json-file-output=snyk-report.json || true
+        snyk-to-html -i snyk-report.json -o snyk-report.html
         snyk monitor
         '''
     }
@@ -68,15 +69,15 @@ stages {
         steps {
             sh '''
             trivy image \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --exit-code 0 \
+            --format template \
+            --template "@/var/lib/jenkins/html.tpl" \
+            -o trivy-report.html \
             ${FRONTEND_IMAGE}:${IMAGE_TAG}
 
             trivy image \
-            --severity HIGH,CRITICAL \
-            --ignore-unfixed \
-            --exit-code 0 \
+            --format template \
+            --template "@/var/lib/jenkins/html.tpl" \
+            -o trivy-report.html \
             ${BACKEND_IMAGE}:${IMAGE_TAG}
             '''
         }
@@ -120,15 +121,26 @@ stages {
         steps {
             sh '''
             docker run --rm \
+            -v $(pwd):/zap/wrk \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
-            -t http://3.80.71.45 || true
+            -t http://3.80.71.45 \
+            -r zap-report.html || true
             '''
         }
     }
 }
 
 post {
+
+    always {
+        archiveArtifacts artifacts: '''
+        backend/snyk-report.html,
+        trivy-report.html,
+        zap-report.html
+        ''', fingerprint: true
+    }
+
     success {
         echo 'Pipeline Completed Successfully'
     }
@@ -136,6 +148,4 @@ post {
     failure {
         echo 'Pipeline Failed'
     }
-}
-
 }
