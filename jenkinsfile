@@ -70,14 +70,14 @@ stages {
             sh '''
             trivy image \
             --format template \
-            --template "@/var/lib/jenkins/html.tpl" \
-            -o trivy-report.html \
+            --template "@html.tpl" \
+            -o trivy-frontend.html \
             ${FRONTEND_IMAGE}:${IMAGE_TAG}
 
             trivy image \
             --format template \
-            --template "@/var/lib/jenkins/html.tpl" \
-            -o trivy-report.html \
+            --template "@html.tpl" \
+            -o trivy-backend.html \
             ${BACKEND_IMAGE}:${IMAGE_TAG}
             '''
         }
@@ -120,8 +120,9 @@ stages {
     stage('OWASP ZAP DAST') {
         steps {
             sh '''
+            chmod -R 777 .
             docker run --rm \
-            -v $(pwd):/zap/wrk \
+            -v $(pwd):/zap/wrk:rw \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://3.80.71.45 \
