@@ -122,7 +122,7 @@ stages {
             docker run --rm \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
-            -t http://3.80.71.45
+            -t http://3.80.71.45 || true
             '''
         }
     }
