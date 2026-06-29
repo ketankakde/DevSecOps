@@ -153,7 +153,7 @@ jobs:
             --output text \
             --parameters '{
             "commands": [
-              "cd /home/ubuntu/",
+              "cd /home/ubuntu/DevSecOps",
               "git pull",
               "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin '${{ secrets.AWS_ACCOUNT_ID }}'.dkr.ecr.us-east-1.amazonaws.com",
               "ECR_REGISTRY='${{ secrets.AWS_ACCOUNT_ID }}'.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose pull",
