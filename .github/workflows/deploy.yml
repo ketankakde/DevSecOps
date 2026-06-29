@@ -1,187 +1,183 @@
 name: DevSecOps Pipeline
 
 on:
- workflow_dispatch:
+  workflow_dispatch:
 
 permissions:
- id-token: write
- contents: read
+  id-token: write
+  contents: read
 
 env:
- AWS_REGION: us-east-1
- AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
- FRONTEND_REPO: frontendBACKEND_REPO: backend
- IMAGE_TAG: latest
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  FRONTEND_REPO: frontend
+  BACKEND_REPO: backend
+  IMAGE_TAG: latest
 
 jobs:
   build-security:
-  runs-on: ubuntu-latest
+    runs-on: ubuntu-latest
 
-steps:
-  - name: Checkout Repository
-    uses: actions/checkout@v4
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-  - name: Setup Node
-    uses: actions/setup-node@v4
-    with:
-      node-version: 22
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
-  - name: Install Backend
-    working-directory: backend
-    run: |
-      npm install    
+      - name: Install Backend
+        working-directory: backend
+        run: |
+          npm install
 
-  - name: SonarCloud Scan
-    uses: SonarSource/sonarqube-scan-action@v5
-    env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    with:
-      args: >
-        -Dsonar.projectKey=ketankakde_DevSecOps
-        -Dsonar.organization=ketankakde    
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=ketankakde_DevSecOps
+            -Dsonar.organization=ketankakde
 
-  - name: Install Snyk
-    run: |
-      npm install -g snyk snyk-to-html        
+      - name: Install Snyk
+        run: |
+          npm install -g snyk snyk-to-html
 
-  - name: Run Snyk Test
-    env:
-     SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-    run: |
-     cd backend
+      - name: Run Snyk Test
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          cd backend
+          snyk auth $SNYK_TOKEN
+          snyk test --json-file-output=snyk-report.json || true
 
-     snyk auth $SNYK_TOKEN
+      - name: Generate HTML Report
+        run: |
+          snyk-to-html \
+            -i backend/snyk-report.json \
+            -o snyk-report.html
 
-     snyk test --json-file-output=snyk-report.json || true
+      - name: Upload Snyk Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-report
+          path: |
+            snyk-report.html
+            backend/snyk-report.json
 
-  - name: Generate HTML Report
-    run: |
-     snyk-to-html \
-     -i backend/snyk-report.json \
-     -o snyk-report.html
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
 
-  - name: Upload Snyk Report
-    uses: actions/upload-artifact@v4
-    with:
-      name: snyk-report
-      path: |
-        snyk-report.html
-        backend/snyk-report.json
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-  - name: Configure AWS Credentials
-    uses: aws-actions/configure-aws-credentials@v4
-    with:
-      role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-      aws-region: us-east-1  
+      - name: Build Backend Docker Image
+        run: |
+          docker build \
+            -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/backend:latest \
+            ./backend
 
-  - name: Login to Amazon ECR
-    id: login-ecr
-    uses: aws-actions/amazon-ecr-login@v2    
+      - name: Build Frontend Docker Image
+        run: |
+          docker build \
+            -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/frontend:latest \
+            ./frontend
 
-  - name: Build Backend Docker Image
-    run: |
-      docker build \
-      -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/backend:latest \
-      ./backend  
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo snap install trivy
 
-  - name: Build Frontend Docker Image
-    run: |
-      docker build \
-      -t $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/frontend:latest \
-      ./frontend    
+      - name: Trivy Backend Scan
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --format table \
+            --exit-code 0 \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/backend:latest
 
-  - name: Install Trivy
-    run: |
-      sudo apt-get update
-      sudo snap install trivy
+      - name: Trivy Frontend Scan
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --format table \
+            --exit-code 0 \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/frontend:latest
 
-  - name: Trivy Backend Scan
-    run: |
-      trivy image \
-      --severity HIGH,CRITICAL \
-      --format table \
-      --exit-code 0 \
-      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/backend:latest    
+      - name: Backend Trivy HTML Report
+        run: |
+          trivy image \
+            --format template \
+            --template "@html.tpl" \
+            -o backend-trivy-report.html \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/backend:latest
 
-  - name: Trivy Frontend Scan
-    run: |
-      trivy image \
-      --severity HIGH,CRITICAL \
-      --format table \
-      --exit-code 0 \
-      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/frontend:latest    
+      - name: Frontend Trivy HTML Report
+        run: |
+          trivy image \
+            --format template \
+            --template "@html.tpl" \
+            -o frontend-trivy-report.html \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/frontend:latest
 
-  - name: Backend Trivy HTML Report
-    run: |
-      trivy image \
-      --format template \
-      --template "@html.tpl" \
-      -o backend-trivy-report.html \
-      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/backend:latest
+      - name: Upload Trivy Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-reports
+          path: |
+            backend-trivy-report.html
+            frontend-trivy-report.html
 
-  - name: Frontend Trivy HTML Report
-    run: |
-      trivy image \
-      --format template \
-      --template "@html.tpl" \
-      -o frontend-trivy-report.html \
-      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/frontend:latest
+      - name: Push Backend Image
+        run: |
+          docker push \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/backend:latest
 
-  - name: Upload Trivy Reports
-    uses: actions/upload-artifact@v4
-    with:
-      name: trivy-reports
-      path: |
-        backend-trivy-report.html
-        frontend-trivy-report.html   
+      - name: Push Frontend Image
+        run: |
+          docker push \
+            $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/frontend:latest
 
-  - name: Push Backend Image
-    run: |
-      docker push \
-      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/backend:latest     
+      - name: Deploy to EC2 using AWS SSM
+        id: deploy
+        run: |
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
+            --document-name "AWS-RunShellScript" \
+            --query "Command.CommandId" \
+            --output text \
+            --parameters commands='[
+              "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com",
+              "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose pull",
+              "docker compose down -v",
+              "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose up -d"
+            ]')
 
-  - name: Push Frontend Image
-    run: |
-      docker push \
-      $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/frontend:latest
+      - name: Wait for Deployment
+        run: sleep 30
 
-  - name: Deploy to EC2 using AWS SSM
-    id: deploy
-    run: |
+      - name: Run OWASP ZAP
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/zap/wrk \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://54.236.222.237 \
+            -r zap-report.html \
+            -J zap-report.json \
+            -x zap-report.xml
 
-      COMMAND_ID=$(aws ssm send-command \
-        --instance-ids ${{ secrets.EC2_INSTANCE_ID }} \
-        --document-name "AWS-RunShellScript" \
-        --query "Command.CommandId" \
-        --output text \
-        --parameters commands='[
-        "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com",
-        "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose pull",
-        "docker compose down -v",
-        "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose up -d"
-      ]')
-
-  - name: Wait for Deployment
-    run: sleep 30
-
-  - name: Run OWASP ZAP
-    run: |
-      docker run --rm \
-        -v ${{ github.workspace }}:/zap/wrk \
-        ghcr.io/zaproxy/zaproxy:stable \
-        zap-baseline.py \
-        -t http://54.236.222.237 \
-        -r zap-report.html \
-        -J zap-report.json \
-        -x zap-report.xml
-
-  - name: Upload ZAP Report
-    uses: actions/upload-artifact@v4
-
-    with:
-      name: zap-report
-
-      path: |
-        zap-report.html
-        zap-report.json
-        zap-report.xml
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: |
+            zap-report.html
+            zap-report.json
+            zap-report.xml
