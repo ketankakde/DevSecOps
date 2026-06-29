@@ -203,15 +203,22 @@ jobs:
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://54.236.222.237 \
-            -r zap-report.html \
-            -J zap-report.json \
-            -x zap-report.xml || true
+            -r /zap/wrk/zap-report.html \
+            -J /zap/wrk/zap-report.json \
+            -x /zap/wrk/zap-report.xml || true
+
+      - name: Verify ZAP Reports
+        run: |
+          pwd
+          ls -lah
+          ls -lah ${{ github.workspace }}
 
       - name: Upload ZAP Report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: zap-report
           path: |
-            zap-report.html
-            zap-report.json
-            zap-report.xml
+            ${{ github.workspace }}/zap-report.html
+            ${{ github.workspace }}/zap-report.json
+            ${{ github.workspace }}/zap-report.xml
