@@ -30,9 +30,6 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
     networks:
       - student_network
     restart: unless-stopped
@@ -44,8 +41,6 @@ services:
       - "80:80"
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/usr/share/nginx/html
     networks:
       - student_network
     restart: unless-stopped
