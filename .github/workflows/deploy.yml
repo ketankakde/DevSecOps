@@ -151,13 +151,17 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --query "Command.CommandId" \
             --output text \
-            --parameters commands='[
-            "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com",
-            "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose pull",
-            "docker compose down -v",
-            "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose up -d"
-            ]')
-          echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
+            --parameters '{
+            "commands": [
+              "cd /home/ubuntu/",
+              "git pull",
+              "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin '${{ secrets.AWS_ACCOUNT_ID }}'.dkr.ecr.us-east-1.amazonaws.com",
+              "ECR_REGISTRY='${{ secrets.AWS_ACCOUNT_ID }}'.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose pull",
+              "ECR_REGISTRY='${{ secrets.AWS_ACCOUNT_ID }}'.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose down -v",
+              "ECR_REGISTRY='${{ secrets.AWS_ACCOUNT_ID }}'.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose up -d"
+             ] 
+          }')
+           echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
 
       - name: Wait for Deployment
         run: sleep 30
