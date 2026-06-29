@@ -152,11 +152,12 @@ jobs:
             --query "Command.CommandId" \
             --output text \
             --parameters commands='[
-              "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com",
-              "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose pull",
-              "docker compose down -v",
-              "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose up -d"
+            "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com",
+            "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose pull",
+            "docker compose down -v",
+            "ECR_REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com IMAGE_TAG=latest docker compose up -d"
             ]')
+          echo "COMMAND_ID=$COMMAND_ID" >> $GITHUB_ENV
 
       - name: Wait for Deployment
         run: sleep 30
@@ -164,13 +165,15 @@ jobs:
       - name: Run OWASP ZAP
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}:/zap/wrk \
+            --user root
+            -v ${{ github.workspace }}:/zap/wrk/:rw \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://54.236.222.237 \
             -r zap-report.html \
             -J zap-report.json \
             -x zap-report.xml
+            -I
 
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
