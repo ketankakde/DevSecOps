@@ -164,8 +164,7 @@ jobs:
 
       - name: Run OWASP ZAP
         run: |
-          docker run --rm \
-            --user root
+          docker run --rm --user root \
             -v ${{ github.workspace }}:/zap/wrk/:rw \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
@@ -173,7 +172,6 @@ jobs:
             -r zap-report.html \
             -J zap-report.json \
             -x zap-report.xml
-            -I
 
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
