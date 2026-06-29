@@ -91,9 +91,8 @@ jobs:
 
       - name: Install Trivy
         run: |
-          sudo apt-get update
-          sudo snap install trivy
-
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+      
       - name: Trivy Backend Scan
         run: |
           trivy image \
